@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { toast } from 'react-toastify';
 
@@ -12,21 +12,43 @@ const AdminRegistrationForm = ({ onSuccess }) => {
     secretKey: ''
   });
   const [loading, setLoading] = useState(false);
+  const [checkingAdmin, setCheckingAdmin] = useState(true);
+  const [adminExists, setAdminExists] = useState(false);
+
+  useEffect(() => {
+    const checkAdminExists = async () => {
+      try {
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend-21-2fu1.onrender.com';
+        const response = await fetch(`${API_BASE_URL}/admin/admins/count`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          setAdminExists(data.count > 0);
+        } else {
+          setAdminExists(false);
+        }
+      } catch (error) {
+        console.error('Error checking admin status:', error);
+        setAdminExists(false);
+      } finally {
+        setCheckingAdmin(false);
+      }
+    };
+
+    checkAdminExists();
+  }, []);
 
   const apiRequest = async (endpoint, options = {}) => {
-    // Use the same base URL as your AuthContext
     const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend-21-2fu1.onrender.com';
     const url = `${API_BASE_URL}/api${endpoint}`;
     
-    // Default configuration
     const defaultConfig = {
       headers: {
         'Content-Type': 'application/json',
       },
-      credentials: 'include', // Include cookies if needed
+      credentials: 'include',
     };
 
-    // Merge default config with provided options
     const config = {
       ...defaultConfig,
       ...options,
@@ -36,7 +58,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
       },
     };
 
-    // Handle request body - stringify if it's an object
     if (config.body && typeof config.body === 'object') {
       config.body = JSON.stringify(config.body);
     }
@@ -44,7 +65,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
     try {
       const response = await fetch(url, config);
       
-      // Check if response is JSON
       const contentType = response.headers.get('content-type');
       const isJson = contentType && contentType.includes('application/json');
       
@@ -64,7 +84,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
         );
       }
       
-      // Return appropriate data based on content type
       if (isJson) {
         return await response.json();
       } else {
@@ -74,7 +93,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
     } catch (error) {
       console.error('API request failed:', error);
       
-      // Enhance error message for network errors
       if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
         throw new Error('Network error: Unable to connect to the server');
       }
@@ -87,14 +105,12 @@ const AdminRegistrationForm = ({ onSuccess }) => {
     e.preventDefault();
     setLoading(true);
 
-    // Validate passwords match
     if (formData.password !== formData.confirmPassword) {
       toast.error('Passwords do not match');
       setLoading(false);
       return;
     }
 
-    // Validate secret key
     if (formData.secretKey !== 'ADMIN_SETUP_2024') {
       toast.error('Invalid admin secret key');
       setLoading(false);
@@ -102,7 +118,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
     }
 
     try {
-      // CORRECTED ENDPOINT: Use /admin/register-admin instead of /auth/register-admin
       const response = await apiRequest('/admin/register-admin', {
         method: 'POST',
         body: {
@@ -115,13 +130,11 @@ const AdminRegistrationForm = ({ onSuccess }) => {
 
       toast.success('Admin account created successfully!');
       
-      // Log in the new admin
       if (response.token) {
         localStorage.setItem('token', response.token);
         login(response.user);
       }
       
-      // Reset form
       setFormData({
         name: '',
         email: '',
@@ -130,7 +143,6 @@ const AdminRegistrationForm = ({ onSuccess }) => {
         secretKey: ''
       });
 
-      // Notify parent component
       if (onSuccess) onSuccess();
     } catch (error) {
       console.error('Registration error:', error);
@@ -146,6 +158,33 @@ const AdminRegistrationForm = ({ onSuccess }) => {
       [e.target.name]: e.target.value
     });
   };
+
+  if (checkingAdmin) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking admin status...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (adminExists) {
+    return (
+      <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
+        <h3 className="text-xl font-bold mb-4 text-center text-green-600">Admin Already Exists</h3>
+        <p className="text-gray-600 text-center">
+          An admin account has already been created. Please use the login page to access the system.
+        </p>
+        <div className="mt-4 text-center">
+          <a href="/login" className="text-blue-600 hover:text-blue-800">
+            Go to Login Page
+          </a>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-md max-w-md mx-auto">
